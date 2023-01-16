@@ -1,11 +1,13 @@
-# PyTorch Template Project
-PyTorch deep learning project made easy.
+# CNNs Aging Project 
+Deep learning models show remarkable results on computer vision tasks by optimizing the network parameters, such as network depth, layers connections, weights initialization, and network hyperparameters.
+A fascinating observation is that biological systems fail differently than man-made machines as they age. In this work, we will study how these Deep networks perform as a function of age-associated failure. We will explore the effect of aging on different state-of-the-art deep networks and 2D vision datasets.
+
 
 <!-- @import "[TOC]" {cmd="toc" depthFrom=1 depthTo=6 orderedList=false} -->
 
 <!-- code_chunk_output -->
 
-* [PyTorch Template Project](#pytorch-template-project)
+* [CCNs Aging Project](#cnns-aging-project)
 	* [Requirements](#requirements)
 	* [Features](#features)
 	* [Folder Structure](#folder-structure)
@@ -13,21 +15,24 @@ PyTorch deep learning project made easy.
 		* [Config file format](#config-file-format)
 		* [Using config files](#using-config-files)
 		* [Resuming from checkpoints](#resuming-from-checkpoints)
+		* [Run test with pruning](#run-test-with-pruning)
+		* [Run multiply test](#run-multiply-test)
+		* [Run all configurations](#run-all-configurations)
+		* [Analyze](#analyze)
+			* [Plot metrics](#plot-metrics)
+			* [Plot failure rate](#plot-failure-rate)
+			* [Plot fit to Gompertz and Weibull](#plot-fit-to-gompertz-and-weibull)
     * [Using Multiple GPU](#using-multiple-gpu)
 	* [Customization](#customization)
 		* [Custom CLI options](#custom-cli-options)
 		* [Data Loader](#data-loader)
-		* [Trainer](#trainer)
 		* [Model](#model)
 		* [Loss](#loss)
 		* [metrics](#metrics)
 		* [Additional logging](#additional-logging)
+		* [Testing](#testing)
 		* [Validation data](#validation-data)
 		* [Checkpoints](#checkpoints)
-    * [Tensorboard Visualization](#tensorboard-visualization)
-	* [Contribution](#contribution)
-	* [TODOs](#todos)
-	* [License](#license)
 	* [Acknowledgements](#acknowledgements)
 
 <!-- /code_chunk_output -->
@@ -39,27 +44,40 @@ PyTorch deep learning project made easy.
 * tensorboard >= 1.14 (see [Tensorboard Visualization](#tensorboard-visualization))
 
 ## Features
-* Clear folder structure which is suitable for many deep learning projects.
-* `.json` config file support for convenient parameter tuning.
+* 4 CNN models - VGG16, InceptionV3, ResNet50, EfficientNetB7
+* 3 dataloader - Cifar10, Cifar100, ImageNet
+* `.json` config files support for convenient parameter tuning.
 * Customizable command line options for more convenient parameter tuning.
 * Checkpoint saving and resuming.
-* Abstract base classes for faster development:
-  * `BaseTrainer` handles checkpoint saving/resuming, training process logging, and more.
-  * `BaseDataLoader` handles batch generation, data shuffling, and validation data splitting.
-  * `BaseModel` provides basic model summary.
+* 3 python scripts for ploting the experiments results:
+  * `plot_all.py` ploting the different metrics for every configuration.
+  * `plot_acc.py` ploting the failure rate for every configuration.
+  * `plot_fit.py` ploting the fit to Gompertz and Weibull function.
 
 ## Folder Structure
   ```
   pytorch-template/
   │
   ├── train.py - main script to start training
-  ├── test.py - evaluation of trained model
+  ├── test.py - evaluation of trained model and option for prune the models
   │
-  ├── config.json - holds configuration for training
+  ├── config.json - holds example configuration for training
   ├── parse_config.py - class to handle config file and cli options
   │
   ├── new_project.py - initialize new project with template files
   │
+  ├── plot_all.py - ploting the different metrics for every configuration
+  ├── plot_acc.py - ploting the failure rate for every configuration
+  ├── plot_fit.py - ploting the fit to Gompertz and Weibull function
+  |
+  ├── our_prune.py - implementation of LastN pruning
+  |
+  ├── std.py - calculate the std of the different experiments
+  ├── func.py -  contain different functions for analyzing the data
+  |
+  ├── avg.sh - run each test number of times and calculate the avarage of the different metrics
+  ├── run.sh - call the avg script for each one of the configurations.
+  |
   ├── base/ - abstract base classes
   │   ├── base_data_loader.py
   │   ├── base_model.py
@@ -71,8 +89,8 @@ PyTorch deep learning project made easy.
   ├── data/ - default directory for storing input data
   │
   ├── model/ - models, losses, and metrics
-  │   ├── model.py
-  │   ├── metric.py
+  │   ├── model.py - contain the four models: VGG16, InceptionV3, ResNet50 and EfficientNetB7
+  │   ├── metric.py - contain four metrics: accuracy, top 5 accuracy, TPR and TNR
   │   └── loss.py
   │
   ├── saved/
@@ -87,30 +105,35 @@ PyTorch deep learning project made easy.
   │   ├── logger.py
   │   └── logger_config.json
   │  
-  └── utils/ - small utility functions
-      ├── util.py
-      └── ...
+  ├── utils/ - small utility functions
+  │   ├── util.py
+  │   └── ...
+  |
+  ├── config_fiels/ - contain all the configuration fiels with the tuned hyper-parameters
+  │   └── ...
+  │
+  └── prune_result_final/ - contain al the csv fiels from the avg script
+     └── ...
   ```
 
 ## Usage
-The code in this repo is an MNIST example of the template.
-Try `python train.py -c config.json` to run code.
+The command `python train.py -c config_files/config.json` run the training of the chosen configuration.
 
 ### Config file format
 Config files are in `.json` format:
 ```javascript
 {
-  "name": "Mnist_LeNet",        // training session name
+  "name": "VGG16_Cifar10",        // training session name
   "n_gpu": 1,                   // number of GPUs to use for training.
   
   "arch": {
-    "type": "MnistModel",       // name of model architecture to train
+    "type": "VGG16Model",       // name of model architecture to train
     "args": {
 
     }                
   },
   "data_loader": {
-    "type": "MnistDataLoader",         // selecting data loader
+    "type": "Cifar10DataLoader",         // selecting data loader
     "args":{
       "data_dir": "data/",             // dataset path
       "batch_size": 64,                // batch size
@@ -127,7 +150,7 @@ Config files are in `.json` format:
       "amsgrad": true
     }
   },
-  "loss": "nll_loss",                  // loss
+  "loss": "cross_entropy",                  // loss
   "metrics": [
     "accuracy", "top_k_acc"            // list of metrics to evaluate
   ],                         
@@ -152,7 +175,7 @@ Config files are in `.json` format:
 }
 ```
 
-Add addional configurations if you need.
+All of the configuration files are under config_files folder.
 
 ### Using config files
 Modify the configurations in `.json` config files, then run:
@@ -167,17 +190,63 @@ You can resume from a previously saved checkpoint by:
   ```
   python train.py --resume path/to/checkpoint
   ```
+### Run test with pruning
+In order to run the test with pruning use the command:
 
-### Using Multiple GPU
+  ```
+  python test.py -r path/to/checkpoint -p <percent> -t <pruning type>
+  ```
+ * When percent is in decimal, for example: percent = 0.2 for remove 20% of the weights
+ * When pruning type can be one of the three options: random / l1 / lastN
+
+### Run multiply test
+In order to get the average of several runnings, run the avg.sh script. It will generate csv file with the average metrics and their std.
+* csv format:
+  ```
+  pruning_percent avg_loss avg_accuracy avg_top5 avg_TPR avg_TNR std_accuracy std_top5 std_TPR avg_TNR
+         |           |        |            |        |       |       |            |        |       |  
+	     |           |        |            |        |       |       |            |        |       |
+	     |           |        |            |        |       |       |            |        |       |
+	     |           |        |            |        |       |       |            |        |       |   
+	     |           |        |            |        |       |       |            |        |       |   
+	     |           |        |            |        |       |       |            |        |       |   
+	     |           |        |            |        |       |       |            |        |       |   
+  ```
+
+* command line:
+  ```
+  ./avg.sh <model name> path/to/checkpoint <prune type>
+  ```
+  for example:
+  * model name: VGG16_cifar10
+  * prune type: random / l1 / lastN
+
+### Run all configurations
+To run all the experiments, use the script run.sh. If you want to run just part of the configurations, you can comment their appearance in the script.
+
+### Analyze
+For analyzing the data, there are three scripts. they read the data from the csv fiels generated by the avg.sh script.
+
+#### Plot metrics
+Ploting the different metrics for every configuration. Has no parameters.
+
+#### Plot failure rate
+Ploting the failure rate for every configuration. Has no parameters.
+ 
+#### Plot fit to Gompertz and Weibull
+Ploting the fit to Gompertz and Weibull function. Has no parameters.
+
+
+## Using Multiple GPU
 You can enable multi-GPU training by setting `n_gpu` argument of the config file to larger number.
 If configured to use smaller number of gpu than available, first n devices will be used by default.
 Specify indices of available GPUs by cuda environmental variable.
   ```
-  python train.py --device 2,3 -c config.json
+  python train.py --device 2,3 -c config_files/config.json
   ```
   This is equivalent to
   ```
-  CUDA_VISIBLE_DEVICES=2,3 python train.py -c config.py
+  CUDA_VISIBLE_DEVICES=2,3 python train.py -c config_files/config.py
   ```
 
 ## Customization
@@ -211,73 +280,14 @@ which is increased to 256 by command line options.
 
 
 ### Data Loader
-* **Writing your own data loader**
-
-1. **Inherit ```BaseDataLoader```**
-
-    `BaseDataLoader` is a subclass of `torch.utils.data.DataLoader`, you can use either of them.
-
-    `BaseDataLoader` handles:
-    * Generating next batch
-    * Data shuffling
-    * Generating validation data loader by calling
-    `BaseDataLoader.split_validation()`
-
-* **DataLoader Usage**
-
-  `BaseDataLoader` is an iterator, to iterate through batches:
-  ```python
-  for batch_idx, (x_batch, y_batch) in data_loader:
-      pass
-  ```
-* **Example**
-
-  Please refer to `data_loader/data_loaders.py` for an MNIST data loading example.
-
-### Trainer
-* **Writing your own trainer**
-
-1. **Inherit ```BaseTrainer```**
-
-    `BaseTrainer` handles:
-    * Training process logging
-    * Checkpoint saving
-    * Checkpoint resuming
-    * Reconfigurable performance monitoring for saving current best model, and early stop training.
-      * If config `monitor` is set to `max val_accuracy`, which means then the trainer will save a checkpoint `model_best.pth` when `validation accuracy` of epoch replaces current `maximum`.
-      * If config `early_stop` is set, training will be automatically terminated when model performance does not improve for given number of epochs. This feature can be turned off by passing 0 to the `early_stop` option, or just deleting the line of config.
-
-2. **Implementing abstract methods**
-
-    You need to implement `_train_epoch()` for your training process, if you need validation then you can implement `_valid_epoch()` as in `trainer/trainer.py`
-
-* **Example**
-
-  Please refer to `trainer/trainer.py` for MNIST training.
-
-* **Iteration-based training**
-
-  `Trainer.__init__` takes an optional argument, `len_epoch` which controls number of batches(steps) in each epoch.
+containing three kinds of dataloaders: Cifar10, Cifar100 and ImageNet.
+The EfficientNetB7 model need to get the Images in a different initialization so there is a copy of the dataloaders for its use.
 
 ### Model
-* **Writing your own model**
-
-1. **Inherit `BaseModel`**
-
-    `BaseModel` handles:
-    * Inherited from `torch.nn.Module`
-    * `__str__`: Modify native `print` function to prints the number of trainable parameters.
-
-2. **Implementing abstract methods**
-
-    Implement the foward pass method `forward()`
-
-* **Example**
-
-  Please refer to `model/model.py` for a LeNet example.
+containig four models: VGG16, InceptionV3, ResNet50 and EfficientNetB7. there is another model- MNIST for example from previous project.
 
 ### Loss
-Custom loss functions can be implemented in 'model/loss.py'. Use them by changing the name given in "loss" in config file, to corresponding name.
+Custom loss functions can be implemented in 'model/loss.py'. We implemented the cross entropy loss function.
 
 ### Metrics
 Metric functions are located in 'model/metric.py'.
@@ -286,6 +296,7 @@ You can monitor multiple metrics by providing a list in the configuration file, 
   ```json
   "metrics": ["accuracy", "top_k_acc"],
   ```
+We implemented four kinds of metrics: accuracy, top 5 accuracy, TPR and TNR
 
 ### Additional logging
 If you have additional information to be logged, in `_train_epoch()` of your trainer class, merge them with `log` as shown below before returning:
@@ -309,7 +320,7 @@ The `validation_split` can be a ratio of validation set per total data(0.0 <= fl
 ### Checkpoints
 You can specify the name of the training session in config files:
   ```json
-  "name": "MNIST_LeNet",
+  "name": "VGG16_Cifar10",
   ```
 
 The checkpoints will be saved in `save_dir/name/timestamp/checkpoint_epoch_n`, with timestamp in mmdd_HHMMSS format.
@@ -327,52 +338,6 @@ A copy of config file will be saved in the same folder.
     'config': self.config
   }
   ```
-
-### Tensorboard Visualization
-This template supports Tensorboard visualization by using either  `torch.utils.tensorboard` or [TensorboardX](https://github.com/lanpa/tensorboardX).
-
-1. **Install**
-
-    If you are using pytorch 1.1 or higher, install tensorboard by 'pip install tensorboard>=1.14.0'.
-
-    Otherwise, you should install tensorboardx. Follow installation guide in [TensorboardX](https://github.com/lanpa/tensorboardX).
-
-2. **Run training** 
-
-    Make sure that `tensorboard` option in the config file is turned on.
-
-    ```
-     "tensorboard" : true
-    ```
-
-3. **Open Tensorboard server** 
-
-    Type `tensorboard --logdir saved/log/` at the project root, then server will open at `http://localhost:6006`
-
-By default, values of loss and metrics specified in config file, input images, and histogram of model parameters will be logged.
-If you need more visualizations, use `add_scalar('tag', data)`, `add_image('tag', image)`, etc in the `trainer._train_epoch` method.
-`add_something()` methods in this template are basically wrappers for those of `tensorboardX.SummaryWriter` and `torch.utils.tensorboard.SummaryWriter` modules. 
-
-**Note**: You don't have to specify current steps, since `WriterTensorboard` class defined at `logger/visualization.py` will track current steps.
-
-## Contribution
-Feel free to contribute any kind of function or enhancement, here the coding style follows PEP8
-
-Code should pass the [Flake8](http://flake8.pycqa.org/en/latest/) check before committing.
-
-## TODOs
-
-- [ ] Multiple optimizers
-- [ ] Support more tensorboard functions
-- [x] Using fixed random seed
-- [x] Support pytorch native tensorboard
-- [x] `tensorboardX` logger support
-- [x] Configurable logging layout, checkpoint naming
-- [x] Iteration-based training (instead of epoch-based)
-- [x] Adding command line option for fine-tuning
-
-## License
-This project is licensed under the MIT License. See  LICENSE for more details
-
+  
 ## Acknowledgements
-This project is inspired by the project [Tensorflow-Project-Template](https://github.com/MrGemy95/Tensorflow-Project-Template) by [Mahmoud Gemy](https://github.com/MrGemy95)
+This project used the template pytorch project [PyTorch-Template-Project](https://github.com/xieydd/High-Resolution-Neural-Face-Swapping-for-Visual-Effects) by [xieydd](https://github.com/xieydd)
